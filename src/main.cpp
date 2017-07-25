@@ -1,17 +1,19 @@
 #include "Arduino.h"
 #include <Wire.h>
 #include <RTClib.h>
+#include <Adafruit_NeoPixel.h>
 
 #ifndef UNIT_TEST
 
 const String VERSION = "0.1";
 
 RTC_DS1307 rtc;
+int PIXEL_PIN = 5;
+Adafruit_NeoPixel pixel = Adafruit_NeoPixel(1, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
 int MOISTURE_SENSOR_PIN = A0;
 int TANK_LEVEL_SENSOR_PIN = 6;
 int VALVE_PIN = 7;
-int TANK_WARNING_LED_PIN = 8;
 
 TimeSpan checkInterval = TimeSpan(0, 0, 0, 5);
 const int WATER_SPREAD_DELAY = 5000;
@@ -44,6 +46,11 @@ void printDate(const DateTime& dt) {
     Serial.println();
 }
 
+void setStatusColor(int r, int g, int b) {
+  pixel.setPixelColor(0, pixel.Color(r, g, b));
+  pixel.show();
+}
+
 float readMoistureLevel() {
   float result = analogRead(MOISTURE_SENSOR_PIN);
 
@@ -73,11 +80,11 @@ bool plantNeedsWater() {
 }
 
 void showEmptyTankWarning() {
-  digitalWrite(TANK_WARNING_LED_PIN, HIGH);
+  setStatusColor(255, 0, 0);
 }
 
 void hideEmptyTankWarning() {
-  digitalWrite(TANK_WARNING_LED_PIN, LOW);
+  setStatusColor(0, 255, 0);
 }
 
 TimeSpan getTimeUntilNextCheck() {
@@ -113,6 +120,8 @@ void checkTank() {
 void waterPlant() {
   int wateringCycles = 0;
 
+  setStatusColor(255, 255, 0);
+
   while (plantNeedsWater() && !tankLevelWasCritical) {
     openWaterValve(WATERING_AMOUNT_TIME);
 
@@ -130,6 +139,8 @@ void waterPlant() {
       break;
     }
   }
+
+  setStatusColor(0, 255, 0);
 
   if (!plantNeedsWater()) {
     Serial.print("Plant was watered successfully after ");
@@ -149,6 +160,11 @@ void scheduleNextCheck() {
 
 void setup() {
   //while (!Serial); // for Leonardo/Micro/Zero
+
+  pixel.begin();
+  pixel.show();
+
+  setStatusColor(0, 0, 255);
 
   Serial.begin(57600);
 
@@ -175,9 +191,10 @@ void setup() {
   pinMode(MOISTURE_SENSOR_PIN, INPUT);
   pinMode(TANK_LEVEL_SENSOR_PIN, INPUT);
   pinMode(VALVE_PIN, OUTPUT);
-  pinMode(TANK_WARNING_LED_PIN, OUTPUT);
 
   nextCheckDateTime = rtc.now();
+
+  setStatusColor(0, 0, 0);
 
   Serial.println("Setup done.");
   Serial.println("");
