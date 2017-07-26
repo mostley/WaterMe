@@ -5,17 +5,14 @@
 
 #ifndef UNIT_TEST
 
-const String VERSION = "0.1";
+const String VERSION = "0.2";
 
-RTC_DS1307 rtc;
 int PIXEL_PIN = 5;
-Adafruit_NeoPixel pixel = Adafruit_NeoPixel(1, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
-
 int MOISTURE_SENSOR_PIN = A0;
 int TANK_LEVEL_SENSOR_PIN = 6;
 int VALVE_PIN = 7;
 
-TimeSpan checkInterval = TimeSpan(0, 0, 0, 5);
+TimeSpan CHECK_INTERVAL = TimeSpan(0, 0, 1, 0);
 const int WATER_SPREAD_DELAY = 5000;
 const int WATERING_AMOUNT_TIME = 1000;
 const int SCHEDULING_DELAY = 500;
@@ -24,12 +21,14 @@ const int MAX_WATERING_CYCLES = 10;
 
 const float MOISTURE_LEVEL_THRESHOLD = 0.5;
 
-const float MOISTURE_BASE_OFFSET = 250.0;
-const float MOISTURE_SCALE_FACTOR = 300.0;
+const float MOISTURE_BASE_OFFSET = -250.0;
+const float MOISTURE_SCALE_FACTOR = 1/300.0;
 
 DateTime nextCheckDateTime;
 bool tankLevelWasCritical;
 
+RTC_DS1307 rtc;
+Adafruit_NeoPixel pixel = Adafruit_NeoPixel(1, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
 void printDate(const DateTime& dt) {
     Serial.print(dt.year(), DEC);
@@ -54,7 +53,7 @@ void setStatusColor(int r, int g, int b) {
 float readMoistureLevel() {
   float result = analogRead(MOISTURE_SENSOR_PIN);
 
-  result = 1 - (result - MOISTURE_BASE_OFFSET) / MOISTURE_SCALE_FACTOR;
+  result = 1 - (result + MOISTURE_BASE_OFFSET) * MOISTURE_SCALE_FACTOR;
 
   Serial.print("[readMoistureLevel() = ");
   Serial.print(result);
@@ -152,7 +151,7 @@ void waterPlant() {
 }
 
 void scheduleNextCheck() {
-  nextCheckDateTime = rtc.now() + checkInterval;
+  nextCheckDateTime = rtc.now() + CHECK_INTERVAL;
   Serial.print("Next Check is scheduled for ");
   printDate(nextCheckDateTime);
 }
@@ -215,7 +214,9 @@ void loop() {
         Serial.println("Plant is sufficiently watered already");
       }
 
-      scheduleNextCheck();
+      if (!tankLevelWasCritical) {
+        scheduleNextCheck();
+      } // else skip scheduling if tank went empty during watering process
     }
 
     delay(SCHEDULING_DELAY);
