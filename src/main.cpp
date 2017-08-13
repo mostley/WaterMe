@@ -9,15 +9,16 @@ const String VERSION = "0.2";
 
 int PIXEL_PIN = 5;
 int MOISTURE_SENSOR_PIN = A0;
-int TANK_LEVEL_SENSOR_PIN = 6;
+int TANK_LEVEL_SENSOR_PIN = A1;
 int VALVE_PIN = 7;
 
 TimeSpan CHECK_INTERVAL = TimeSpan(0, 0, 1, 0);
 const int WATER_SPREAD_DELAY = 5000;
 const int WATERING_AMOUNT_TIME = 1000;
-const int SCHEDULING_DELAY = 500;
+const int SCHEDULING_DELAY = 1500;
 const int EMPTY_TANK_CHECK_INTERVAL = 3000;
 const int MAX_WATERING_CYCLES = 10;
+const int CRITICAL_TANK_LEVEL = 100;
 
 const float MOISTURE_LEVEL_THRESHOLD = 0.5;
 
@@ -48,6 +49,7 @@ void printDate(const DateTime& dt) {
 void setStatusColor(int r, int g, int b) {
   pixel.setPixelColor(0, pixel.Color(r, g, b));
   pixel.show();
+  delay(100);
 }
 
 float readMoistureLevel() {
@@ -55,7 +57,7 @@ float readMoistureLevel() {
 
   result = 1 - (result + MOISTURE_BASE_OFFSET) * MOISTURE_SCALE_FACTOR;
 
-  Serial.print("[readMoistureLevel() = ");
+  Serial.print("[moisture level = ");
   Serial.print(result);
   Serial.print(" (Threshold is ");
   Serial.print(MOISTURE_LEVEL_THRESHOLD);
@@ -65,13 +67,15 @@ float readMoistureLevel() {
 }
 
 bool tankLevelIsCritical() {
-  int result = digitalRead(TANK_LEVEL_SENSOR_PIN);
+  int result = analogRead(TANK_LEVEL_SENSOR_PIN);
 
-  Serial.print("[readTankLevel() = ");
+  Serial.print("[tank level = ");
   Serial.print(result);
-  Serial.println("]");
+  Serial.print(" (Threshold is ");
+  Serial.print(CRITICAL_TANK_LEVEL);
+  Serial.println(")]");
 
-  return result == LOW;
+  return result < CRITICAL_TANK_LEVEL;
 }
 
 bool plantNeedsWater() {
@@ -79,7 +83,13 @@ bool plantNeedsWater() {
 }
 
 void showEmptyTankWarning() {
-  setStatusColor(255, 0, 0);
+  for (int i=0; i<3; i++) {
+    setStatusColor(255, 0, 0);
+    delay(1000);
+    setStatusColor(0, 0, 0);
+    delay(1000);
+  }
+    setStatusColor(255, 0, 0);
 }
 
 void hideEmptyTankWarning() {
@@ -122,7 +132,9 @@ void waterPlant() {
   setStatusColor(255, 255, 0);
 
   while (plantNeedsWater() && !tankLevelWasCritical) {
+    setStatusColor(255, 255, 255);
     openWaterValve(WATERING_AMOUNT_TIME);
+    setStatusColor(255, 255, 0);
 
     Serial.print("Waiting ");
     Serial.print(WATER_SPREAD_DELAY);
@@ -130,16 +142,22 @@ void waterPlant() {
     delay(WATER_SPREAD_DELAY);
 
     checkTank();
+    setStatusColor(255, 255, 0);
 
     wateringCycles += 1;
 
     if (wateringCycles > MAX_WATERING_CYCLES) {
+      for (int i=0; i<3; i++) {
+        setStatusColor(255, 255, 0);
+        delay(1000);
+        setStatusColor(0, 0, 0);
+        delay(1000);
+      }
+      setStatusColor(0, 255, 0);
       Serial.println("Stopping current watering cycles to allow water to spread further");
       break;
     }
   }
-
-  setStatusColor(0, 255, 0);
 
   if (!plantNeedsWater()) {
     Serial.print("Plant was watered successfully after ");
@@ -217,6 +235,8 @@ void loop() {
       if (!tankLevelWasCritical) {
         scheduleNextCheck();
       } // else skip scheduling if tank went empty during watering process
+    } else {
+        Serial.println("Waiting for next watering interval");
     }
 
     delay(SCHEDULING_DELAY);
