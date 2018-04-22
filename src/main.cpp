@@ -5,7 +5,7 @@
 
 #ifndef UNIT_TEST
 
-const String VERSION = "0.2";
+const String VERSION = "0.3";
 
 int PIXEL_PIN = 5;
 int MOISTURE_SENSOR_PIN = A0;
@@ -217,13 +217,18 @@ void setup() {
   Serial.println("");
 }
 
+bool isTimeForNextCheck() {
+  TimeSpan timeUntilNextCheck = getTimeUntilNextCheck();
+  return timeUntilNextCheck.totalseconds() <= 0;
+}
+
 void loop() {
+  //openWaterValve(1000);
+  //return;
   checkTank();
 
   if (!tankLevelWasCritical) {
-    TimeSpan timeUntilNextCheck = getTimeUntilNextCheck();
-
-    if (timeUntilNextCheck.totalseconds() <= 0) {
+    if (isTimeForNextCheck()) {
       Serial.println("Executing Check");
 
       if (plantNeedsWater()) {
